@@ -34,6 +34,7 @@ SHARED_APPS = [
     'corsheaders',
     'django_ratelimit',
     'drf_spectacular',
+    'django_filters',
 ]
 
 TENANT_APPS = [
@@ -47,6 +48,7 @@ TENANT_APPS = [
     'apps.authentication',
     'apps.core',
     'apps.organizational',
+    'apps.campaigns',
 ]
 
 INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in SHARED_APPS]
