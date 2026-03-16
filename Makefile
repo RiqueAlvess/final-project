@@ -2,14 +2,16 @@
 
 help:
 	@echo "Available commands:"
-	@echo "  make build          - Build all Docker images"
-	@echo "  make up             - Start all services"
-	@echo "  make down           - Stop all services"
-	@echo "  make logs           - Show logs from all services"
-	@echo "  make shell          - Open Django shell"
-	@echo "  make migrate        - Run database migrations"
-	@echo "  make createsuperuser - Create a superuser"
-	@echo "  make seed           - Seed demo data"
+	@echo "  make build           - Build all Docker images"
+	@echo "  make up              - Start all services (Redis + API + Celery + Frontend)"
+	@echo "  make down            - Stop all services"
+	@echo "  make logs            - Show logs from all services"
+	@echo "  make shell           - Open Django shell"
+	@echo "  make migrate         - Run database migrations against Supabase"
+	@echo "  make createsuperuser - Create a global admin superuser"
+	@echo "  make seed            - Create public + demo tenants"
+	@echo ""
+	@echo "Database is Supabase (external). Set DATABASE_URL in backend/.env before running."
 
 build:
 	docker compose build
