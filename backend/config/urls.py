@@ -22,6 +22,9 @@ urlpatterns = [
 
     # Core
     path('api/', include('apps.core.urls')),
+
+    # Organizational
+    path('api/organizational/', include('apps.organizational.urls')),
 ]
 
 if settings.DEBUG:
