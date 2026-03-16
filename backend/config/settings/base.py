@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from decouple import config, Csv
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -86,22 +87,45 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# ─── Database ─────────────────────────────────────────────────────────────────
-DATABASES = {
-    'default': {
-        'ENGINE': 'django_tenants.postgresql_backend',
-        'NAME': config('DB_NAME', default='saas_db'),
-        'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD', default='postgres'),
-        'HOST': config('DB_HOST', default='db'),
-        'PORT': config('DB_PORT', default='5432'),
-        'OPTIONS': {
-            'options': '-c search_path=public',
-        },
-    }
-}
+# ─── Database (Supabase PostgreSQL) ──────────────────────────────────────────
+#
+# Supabase exposes three connection modes:
+#   • Session Pooler  – port 5432  on *.pooler.supabase.com  (recommended)
+#   • Transaction Pooler – port 6543  (NOT compatible with django-tenants)
+#   • Direct connection  – port 5432  on db.<ref>.supabase.co
+#
+# django-tenants uses SET search_path per request, which requires session-level
+# state.  Always use the Session Pooler (5432) or the Direct connection.
+# Never use the Transaction Pooler (6543) with this project.
+#
+# DATABASE_URL format (Session Pooler):
+#   postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+# DATABASE_URL format (Direct):
+#   postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres
+
+_db_config = dj_database_url.config(
+    env='DATABASE_URL',
+    default='postgresql://postgres:postgres@db:5432/saas_db',
+    conn_max_age=600,
+    ssl_require=config('DB_SSL_REQUIRE', default=False, cast=bool),
+)
+
+# Override engine so django-tenants schema routing works
+_db_config['ENGINE'] = 'django_tenants.postgresql_backend'
+
+# Required by django-tenants: keep the default search_path pointing to public
+_db_config.setdefault('OPTIONS', {})
+_db_config['OPTIONS']['options'] = '-c search_path=public'
+
+DATABASES = {'default': _db_config}
 
 DATABASE_ROUTERS = ['django_tenants.routers.TenantSyncRouter']
+
+# ─── Supabase ─────────────────────────────────────────────────────────────────
+SUPABASE_URL = config('SUPABASE_URL', default='')
+SUPABASE_ANON_KEY = config('SUPABASE_ANON_KEY', default='')
+SUPABASE_SERVICE_ROLE_KEY = config('SUPABASE_SERVICE_ROLE_KEY', default='')
+SUPABASE_STORAGE_BUCKET = config('SUPABASE_STORAGE_BUCKET', default='media')
 
 # ─── Auth ─────────────────────────────────────────────────────────────────────
 AUTH_USER_MODEL = 'users.User'

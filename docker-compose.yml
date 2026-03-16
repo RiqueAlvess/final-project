@@ -1,24 +1,8 @@
 version: "3.9"
 
-services:
-  # ─── PostgreSQL (local dev; use Supabase in production) ─────────────────────
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DB_NAME:-saas_db}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+# Database is Supabase (external). Only Redis + application services run here.
 
+services:
   # ─── Redis ───────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -42,23 +26,18 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DB_HOST: db
       REDIS_URL: redis://redis:6379/0
       DJANGO_SETTINGS_MODULE: config.settings.development
     ports:
       - "8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
       - ./backend:/app
       - static_volume:/app/staticfiles
-      - media_volume:/app/media
     command: >
       sh -c "
-        echo 'Waiting for DB...' &&
         python manage.py migrate_schemas --shared &&
         python manage.py migrate_schemas &&
         gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --reload
@@ -73,12 +52,9 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DB_HOST: db
       REDIS_URL: redis://redis:6379/0
       DJANGO_SETTINGS_MODULE: config.settings.development
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
@@ -120,7 +96,5 @@ services:
       - /app/.next
 
 volumes:
-  postgres_data:
   redis_data:
   static_volume:
-  media_volume:
