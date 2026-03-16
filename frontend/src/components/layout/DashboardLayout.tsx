@@ -15,6 +15,7 @@ import {
   Bell,
   Search,
   Shield,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -47,6 +48,12 @@ const navItems = [
     label: "Organization",
     href: "/dashboard/organization",
     icon: Building2,
+    roles: ["GLOBAL_ADMIN", "RH"],
+  },
+  {
+    label: "CSV Import",
+    href: "/dashboard/csv-import",
+    icon: FileSpreadsheet,
     roles: ["GLOBAL_ADMIN", "RH"],
   },
   {

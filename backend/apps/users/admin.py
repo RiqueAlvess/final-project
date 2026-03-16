@@ -5,6 +5,20 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, PasswordResetToken
 
 
+class LeaderPermissionInline(admin.TabularInline):
+    """Inline for leader's organizational permissions."""
+
+    try:
+        from apps.organizational.models import LeaderPermission
+        model = LeaderPermission
+        extra = 0
+        fields = ('unidade', 'setor')
+        verbose_name = 'Leader Permission'
+        verbose_name_plural = 'Leader Permissions'
+    except Exception:
+        pass
+
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     list_display = ('email', 'first_name', 'last_name', 'role', 'is_active', 'is_locked', 'date_joined')
@@ -36,6 +50,7 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
 
+    inlines = (LeaderPermissionInline,)
     actions = ['lock_selected_users', 'unlock_selected_users']
 
     def lock_selected_users(self, request, queryset):
