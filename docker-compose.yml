@@ -90,10 +90,6 @@ services:
       - "3000:3000"
     depends_on:
       - api
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
 
 volumes:
   redis_data:
