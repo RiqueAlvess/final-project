@@ -78,6 +78,16 @@ export interface DashboardData {
   };
 }
 
+export interface DashboardFilters {
+  unidades: Array<{ id: number; name: string }>;
+  setores: Array<{ id: number; name: string; unidade_id: number; unidade__name: string }>;
+}
+
+export interface DashboardFilterParams {
+  unidade_ids?: number[];
+  setor_ids?: number[];
+}
+
 export interface PaginatedResponse<T> {
   count: number;
   next: string | null;
@@ -120,8 +130,20 @@ const campaignsApi = {
     ),
 
   // Dashboard
-  getDashboard: (campaignId: number) =>
-    apiClient.get<DashboardData>(`/api/campaigns/${campaignId}/dashboard/`),
+  getDashboard: (campaignId: number, filters?: DashboardFilterParams) => {
+    const params = new URLSearchParams();
+    if (filters?.unidade_ids?.length) {
+      params.set('unidade_ids', filters.unidade_ids.join(','));
+    }
+    if (filters?.setor_ids?.length) {
+      params.set('setor_ids', filters.setor_ids.join(','));
+    }
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiClient.get<DashboardData>(`/api/campaigns/${campaignId}/dashboard/${query}`);
+  },
+
+  getDashboardFilters: (campaignId: number) =>
+    apiClient.get<DashboardFilters>(`/api/campaigns/${campaignId}/dashboard/filters/`),
 };
 
 export const surveyApi = {

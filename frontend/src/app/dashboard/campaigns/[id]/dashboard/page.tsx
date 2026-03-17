@@ -10,6 +10,8 @@ import {
   TrendingUp,
   AlertTriangle,
   Activity,
+  Filter,
+  X,
 } from "lucide-react";
 import {
   RadarChart,
@@ -35,7 +37,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import campaignsApi, { DashboardData } from "@/services/campaigns";
+import campaignsApi, {
+  DashboardData,
+  DashboardFilters,
+  DashboardFilterParams,
+} from "@/services/campaigns";
 
 // ── Risk level colours ────────────────────────────────────────────────────────
 const RISK_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -95,6 +101,117 @@ function MetricCard({
   );
 }
 
+// ── Filter panel ──────────────────────────────────────────────────────────────
+function FilterPanel({
+  filters,
+  selectedUnidades,
+  selectedSetores,
+  onUnidadeToggle,
+  onSetorToggle,
+  onClear,
+}: {
+  filters: DashboardFilters;
+  selectedUnidades: number[];
+  selectedSetores: number[];
+  onUnidadeToggle: (id: number) => void;
+  onSetorToggle: (id: number) => void;
+  onClear: () => void;
+}) {
+  // Setores available given the selected unidades (cascading)
+  const visibleSetores =
+    selectedUnidades.length > 0
+      ? filters.setores.filter((s) => selectedUnidades.includes(s.unidade_id))
+      : filters.setores;
+
+  const hasFilters = selectedUnidades.length > 0 || selectedSetores.length > 0;
+
+  return (
+    <Card className="mb-4">
+      <CardHeader className="pb-2 pt-4 px-5">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-500" />
+            Filtros
+            {hasFilters && (
+              <Badge variant="secondary" className="text-xs ml-1">
+                {selectedUnidades.length + selectedSetores.length} ativos
+              </Badge>
+            )}
+          </CardTitle>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={onClear} className="h-7 text-xs text-slate-500">
+              <X className="w-3 h-3 mr-1" />
+              Limpar
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="px-5 pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Unidades */}
+          <div>
+            <p className="text-xs font-medium text-slate-500 mb-2">Unidades</p>
+            {filters.unidades.length === 0 ? (
+              <p className="text-xs text-slate-400">Nenhuma unidade disponível</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {filters.unidades.map((u) => {
+                  const active = selectedUnidades.includes(u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => onUnidadeToggle(u.id)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        active
+                          ? "bg-violet-600 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {u.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Setores */}
+          <div>
+            <p className="text-xs font-medium text-slate-500 mb-2">
+              Setores
+              {selectedUnidades.length > 0 && (
+                <span className="text-slate-400 font-normal ml-1">(filtrado por unidade)</span>
+              )}
+            </p>
+            {visibleSetores.length === 0 ? (
+              <p className="text-xs text-slate-400">Nenhum setor disponível</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {visibleSetores.map((s) => {
+                  const active = selectedSetores.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => onSetorToggle(s.id)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        active
+                          ? "bg-blue-600 text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {s.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main dashboard ────────────────────────────────────────────────────────────
 export default function CampaignDashboard() {
   const params = useParams();
@@ -103,23 +220,67 @@ export default function CampaignDashboard() {
   const campaignId = Number(params.id);
 
   const [data, setData] = useState<DashboardData | null>(null);
+  const [availableFilters, setAvailableFilters] = useState<DashboardFilters | null>(null);
+  const [selectedUnidades, setSelectedUnidades] = useState<number[]>([]);
+  const [selectedSetores, setSelectedSetores] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filtersLoading, setFiltersLoading] = useState(true);
+
+  // Load available filter options once on mount
+  useEffect(() => {
+    campaignsApi
+      .getDashboardFilters(campaignId)
+      .then((res) => setAvailableFilters(res.data))
+      .catch(() => {
+        // Non-fatal – filters panel just won't render
+      })
+      .finally(() => setFiltersLoading(false));
+  }, [campaignId]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await campaignsApi.getDashboard(campaignId);
+      const filterParams: DashboardFilterParams = {};
+      if (selectedUnidades.length) filterParams.unidade_ids = selectedUnidades;
+      if (selectedSetores.length) filterParams.setor_ids = selectedSetores;
+      const res = await campaignsApi.getDashboard(campaignId, filterParams);
       setData(res.data);
     } catch {
       toast({ title: "Erro ao carregar dashboard", variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, [campaignId, toast]);
+  }, [campaignId, toast, selectedUnidades, selectedSetores]);
 
+  // Reload dashboard whenever filters change
   useEffect(() => {
     load();
   }, [load]);
+
+  // ── Filter handlers ─────────────────────────────────────────────────────────
+  const toggleUnidade = (id: number) => {
+    setSelectedUnidades((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+    // If toggling off a unidade, also remove its setores from selection
+    if (selectedUnidades.includes(id) && availableFilters) {
+      const setoresForUnidade = availableFilters.setores
+        .filter((s) => s.unidade_id === id)
+        .map((s) => s.id);
+      setSelectedSetores((prev) => prev.filter((s) => !setoresForUnidade.includes(s)));
+    }
+  };
+
+  const toggleSetor = (id: number) => {
+    setSelectedSetores((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const clearFilters = () => {
+    setSelectedUnidades([]);
+    setSelectedSetores([]);
+  };
 
   if (loading) {
     return (
@@ -227,7 +388,11 @@ export default function CampaignDashboard() {
                 : "bg-slate-100 text-slate-600"
             }
           >
-            {campaign.status === "ACTIVE" ? "Ativa" : campaign.status === "CLOSED" ? "Encerrada" : "Rascunho"}
+            {campaign.status === "ACTIVE"
+              ? "Ativa"
+              : campaign.status === "CLOSED"
+              ? "Encerrada"
+              : "Rascunho"}
           </Badge>
         </div>
         <Button variant="outline" size="sm" onClick={load}>
@@ -235,6 +400,18 @@ export default function CampaignDashboard() {
           Atualizar
         </Button>
       </div>
+
+      {/* Filter panel */}
+      {!filtersLoading && availableFilters && (
+        <FilterPanel
+          filters={availableFilters}
+          selectedUnidades={selectedUnidades}
+          selectedSetores={selectedSetores}
+          onUnidadeToggle={toggleUnidade}
+          onSetorToggle={toggleSetor}
+          onClear={clearFilters}
+        />
+      )}
 
       {/* Metric cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -597,9 +774,7 @@ export default function CampaignDashboard() {
           </CardHeader>
           <CardContent>
             {data.demographic_groups.by_gender.length === 0 ? (
-              <p className="text-slate-400 text-sm text-center py-6">
-                Sem dados
-              </p>
+              <p className="text-slate-400 text-sm text-center py-6">Sem dados</p>
             ) : (
               <div className="space-y-2">
                 {data.demographic_groups.by_gender.map((g) => (
@@ -636,9 +811,7 @@ export default function CampaignDashboard() {
           </CardHeader>
           <CardContent>
             {data.demographic_groups.by_age_range.length === 0 ? (
-              <p className="text-slate-400 text-sm text-center py-6">
-                Sem dados
-              </p>
+              <p className="text-slate-400 text-sm text-center py-6">Sem dados</p>
             ) : (
               <div className="space-y-2">
                 {data.demographic_groups.by_age_range.map((a) => (
