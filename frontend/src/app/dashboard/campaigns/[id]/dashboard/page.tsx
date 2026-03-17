@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import campaignsApi, {
+  Campaign,
   DashboardData,
   DashboardFilters,
   DashboardFilterParams,
@@ -103,6 +104,9 @@ function MetricCard({
 
 // ── Filter panel ──────────────────────────────────────────────────────────────
 function FilterPanel({
+  campaigns,
+  currentCampaignId,
+  onCampaignChange,
   filters,
   selectedUnidades,
   selectedSetores,
@@ -110,20 +114,22 @@ function FilterPanel({
   onSetorToggle,
   onClear,
 }: {
-  filters: DashboardFilters;
+  campaigns: Campaign[];
+  currentCampaignId: number;
+  onCampaignChange: (id: number) => void;
+  filters: DashboardFilters | null;
   selectedUnidades: number[];
   selectedSetores: number[];
   onUnidadeToggle: (id: number) => void;
   onSetorToggle: (id: number) => void;
   onClear: () => void;
 }) {
-  // Setores available given the selected unidades (cascading)
   const visibleSetores =
-    selectedUnidades.length > 0
+    filters && selectedUnidades.length > 0
       ? filters.setores.filter((s) => selectedUnidades.includes(s.unidade_id))
-      : filters.setores;
+      : filters?.setores ?? [];
 
-  const hasFilters = selectedUnidades.length > 0 || selectedSetores.length > 0;
+  const hasOrgFilters = selectedUnidades.length > 0 || selectedSetores.length > 0;
 
   return (
     <Card className="mb-4">
@@ -132,81 +138,114 @@ function FilterPanel({
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Filter className="w-4 h-4 text-slate-500" />
             Filtros
-            {hasFilters && (
+            {hasOrgFilters && (
               <Badge variant="secondary" className="text-xs ml-1">
                 {selectedUnidades.length + selectedSetores.length} ativos
               </Badge>
             )}
           </CardTitle>
-          {hasFilters && (
+          {hasOrgFilters && (
             <Button variant="ghost" size="sm" onClick={onClear} className="h-7 text-xs text-slate-500">
               <X className="w-3 h-3 mr-1" />
-              Limpar
+              Limpar filtros
             </Button>
           )}
         </div>
       </CardHeader>
-      <CardContent className="px-5 pb-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Unidades */}
-          <div>
-            <p className="text-xs font-medium text-slate-500 mb-2">Unidades</p>
-            {filters.unidades.length === 0 ? (
-              <p className="text-xs text-slate-400">Nenhuma unidade disponível</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {filters.unidades.map((u) => {
-                  const active = selectedUnidades.includes(u.id);
-                  return (
-                    <button
-                      key={u.id}
-                      onClick={() => onUnidadeToggle(u.id)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                        active
-                          ? "bg-violet-600 text-white"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      {u.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Setores */}
-          <div>
-            <p className="text-xs font-medium text-slate-500 mb-2">
-              Setores
-              {selectedUnidades.length > 0 && (
-                <span className="text-slate-400 font-normal ml-1">(filtrado por unidade)</span>
-              )}
-            </p>
-            {visibleSetores.length === 0 ? (
-              <p className="text-xs text-slate-400">Nenhum setor disponível</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                {visibleSetores.map((s) => {
-                  const active = selectedSetores.includes(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => onSetorToggle(s.id)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                        active
-                          ? "bg-blue-600 text-white"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      {s.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+      <CardContent className="px-5 pb-4 space-y-4">
+        {/* Campanha selector */}
+        <div>
+          <p className="text-xs font-medium text-slate-500 mb-2">Campanha</p>
+          <div className="flex flex-wrap gap-1.5">
+            {campaigns.map((c) => {
+              const active = c.id === currentCampaignId;
+              const statusColor =
+                c.status === "ACTIVE"
+                  ? "bg-green-500"
+                  : c.status === "CLOSED"
+                  ? "bg-slate-400"
+                  : "bg-amber-400";
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => onCampaignChange(c.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                    active
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${statusColor}`} />
+                  {c.name}
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        {/* Unidade + Setor */}
+        {filters && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 border-t border-slate-100">
+            {/* Unidades */}
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">Unidade</p>
+              {filters.unidades.length === 0 ? (
+                <p className="text-xs text-slate-400">Nenhuma unidade disponível</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {filters.unidades.map((u) => {
+                    const active = selectedUnidades.includes(u.id);
+                    return (
+                      <button
+                        key={u.id}
+                        onClick={() => onUnidadeToggle(u.id)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                          active
+                            ? "bg-violet-600 text-white"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {u.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Setores */}
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">
+                Setor
+                {selectedUnidades.length > 0 && (
+                  <span className="text-slate-400 font-normal ml-1">(filtrado por unidade)</span>
+                )}
+              </p>
+              {visibleSetores.length === 0 ? (
+                <p className="text-xs text-slate-400">Nenhum setor disponível</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  {visibleSetores.map((s) => {
+                    const active = selectedSetores.includes(s.id);
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => onSetorToggle(s.id)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                          active
+                            ? "bg-blue-600 text-white"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {s.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -220,21 +259,28 @@ export default function CampaignDashboard() {
   const campaignId = Number(params.id);
 
   const [data, setData] = useState<DashboardData | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [availableFilters, setAvailableFilters] = useState<DashboardFilters | null>(null);
   const [selectedUnidades, setSelectedUnidades] = useState<number[]>([]);
   const [selectedSetores, setSelectedSetores] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtersLoading, setFiltersLoading] = useState(true);
 
-  // Load available filter options once on mount
+  // Load campaign list once (for the selector)
   useEffect(() => {
+    campaignsApi.list().then((res) => {
+      const all = res.data.results ?? (res.data as unknown as Campaign[]);
+      setCampaigns(all);
+    }).catch(() => {});
+  }, []);
+
+  // Reload filters when campaign changes; reset org filters
+  useEffect(() => {
+    setSelectedUnidades([]);
+    setSelectedSetores([]);
     campaignsApi
       .getDashboardFilters(campaignId)
       .then((res) => setAvailableFilters(res.data))
-      .catch(() => {
-        // Non-fatal – filters panel just won't render
-      })
-      .finally(() => setFiltersLoading(false));
+      .catch(() => setAvailableFilters(null));
   }, [campaignId]);
 
   const load = useCallback(async () => {
@@ -252,22 +298,27 @@ export default function CampaignDashboard() {
     }
   }, [campaignId, toast, selectedUnidades, selectedSetores]);
 
-  // Reload dashboard whenever filters change
   useEffect(() => {
     load();
   }, [load]);
 
   // ── Filter handlers ─────────────────────────────────────────────────────────
+  const handleCampaignChange = (id: number) => {
+    if (id !== campaignId) {
+      router.push(`/dashboard/campaigns/${id}/dashboard`);
+    }
+  };
+
   const toggleUnidade = (id: number) => {
+    const removing = selectedUnidades.includes(id);
     setSelectedUnidades((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      removing ? prev.filter((x) => x !== id) : [...prev, id]
     );
-    // If toggling off a unidade, also remove its setores from selection
-    if (selectedUnidades.includes(id) && availableFilters) {
-      const setoresForUnidade = availableFilters.setores
-        .filter((s) => s.unidade_id === id)
-        .map((s) => s.id);
-      setSelectedSetores((prev) => prev.filter((s) => !setoresForUnidade.includes(s)));
+    if (removing && availableFilters) {
+      const toRemove = new Set(
+        availableFilters.setores.filter((s) => s.unidade_id === id).map((s) => s.id)
+      );
+      setSelectedSetores((prev) => prev.filter((s) => !toRemove.has(s)));
     }
   };
 
@@ -401,9 +452,12 @@ export default function CampaignDashboard() {
         </Button>
       </div>
 
-      {/* Filter panel */}
-      {!filtersLoading && availableFilters && (
+      {/* Filter panel — always visible once campaigns load */}
+      {campaigns.length > 0 && (
         <FilterPanel
+          campaigns={campaigns}
+          currentCampaignId={campaignId}
+          onCampaignChange={handleCampaignChange}
           filters={availableFilters}
           selectedUnidades={selectedUnidades}
           selectedSetores={selectedSetores}
