@@ -1,4 +1,4 @@
-"""Async Celery tasks for survey email dispatch."""
+"""Async Celery tasks for survey email dispatch and score computation."""
 
 import logging
 
@@ -7,6 +7,43 @@ from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+# ── Score computation (heavy analytics pipeline) ──────────────────────────────
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+def compute_dimension_scores(self, response_id: int) -> None:
+    """
+    Asynchronously compute and persist DimensionScore rows for a SurveyResponse.
+
+    This task is enqueued immediately after a survey is submitted so that
+    score calculation is never performed during the HTTP request cycle.
+    The dashboard consumes the pre-computed DimensionScore rows via selectors.
+    """
+    from apps.campaigns.models import SurveyResponse
+    from apps.campaigns.services import ScoreCalculationService
+
+    try:
+        response = SurveyResponse.objects.select_related(
+            'invite', 'campaign'
+        ).get(pk=response_id)
+    except SurveyResponse.DoesNotExist:
+        logger.error('SurveyResponse %s not found – skipping score computation', response_id)
+        return
+
+    try:
+        scores = ScoreCalculationService.calculate_and_store(response)
+        logger.info(
+            'Computed %d DimensionScore rows for response %s (campaign %s)',
+            len(scores),
+            response_id,
+            response.campaign_id,
+        )
+    except Exception as exc:
+        logger.error(
+            'Score computation failed for response %s: %s', response_id, exc
+        )
+        raise self.retry(exc=exc)
 
 
 def _send_resend(to: str, subject: str, html: str) -> bool:

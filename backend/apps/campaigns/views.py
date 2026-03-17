@@ -6,7 +6,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.users.permissions import IsRH
+from apps.users.models import UserRole
+from apps.users.permissions import IsRH, IsRHOrLeader
 
 from .models import Campaign, HSEDimension, SurveyInvite
 from .serializers import (
@@ -20,10 +21,10 @@ from .serializers import (
 )
 from .services import (
     CampaignService,
-    DashboardService,
     InviteService,
     SurveySubmissionService,
 )
+from . import selectors
 
 
 # ── Campaigns ──────────────────────────────────────────────────────────────────
@@ -238,13 +239,82 @@ class SurveySubmitView(APIView):
 
 # ── Dashboard ──────────────────────────────────────────────────────────────────
 
+def _parse_int_list(raw: str | None) -> list[int]:
+    """Parse a comma-separated string of ints from a query param, e.g. '1,2,3'."""
+    if not raw:
+        return []
+    result = []
+    for part in raw.split(','):
+        part = part.strip()
+        if part.isdigit():
+            result.append(int(part))
+    return result
+
+
+def _enforce_leader_filters(
+    user,
+    requested_unidade_ids: list[int],
+    requested_setor_ids: list[int],
+) -> tuple[list[int] | None, list[int] | None]:
+    """
+    For LEADER users, intersect the requested filters with their granted permissions.
+    Returns (allowed_unidade_ids, allowed_setor_ids).
+    For RH/GLOBAL_ADMIN returns the requested lists unchanged (None means no filter).
+    """
+    if user.role in (UserRole.RH, UserRole.GLOBAL_ADMIN):
+        return requested_unidade_ids or None, requested_setor_ids or None
+
+    from apps.organizational.models import LeaderPermission, Setor
+    from django.db.models import Q
+
+    perms = LeaderPermission.objects.filter(user=user)
+    unidade_all = set(perms.filter(setor__isnull=True).values_list('unidade_id', flat=True))
+    setor_exact = set(perms.filter(setor__isnull=False).values_list('setor_id', flat=True))
+
+    # Build full allowed setor set for leader
+    all_allowed_setor_ids = set(
+        Setor.objects.filter(unidade_id__in=unidade_all).values_list('pk', flat=True)
+    ) | setor_exact
+    all_allowed_unidade_ids = unidade_all | set(
+        perms.filter(setor__isnull=False).values_list('unidade_id', flat=True)
+    )
+
+    if requested_unidade_ids:
+        allowed_u = [u for u in requested_unidade_ids if u in all_allowed_unidade_ids]
+    else:
+        allowed_u = list(all_allowed_unidade_ids)
+
+    if requested_setor_ids:
+        allowed_s = [s for s in requested_setor_ids if s in all_allowed_setor_ids]
+    else:
+        # When no setor filter requested, use all allowed setores (limit to selected unidades)
+        if allowed_u:
+            allowed_s = list(
+                Setor.objects.filter(unidade_id__in=allowed_u)
+                .filter(pk__in=all_allowed_setor_ids)
+                .values_list('pk', flat=True)
+            )
+        else:
+            allowed_s = list(all_allowed_setor_ids)
+
+    return allowed_u or None, allowed_s or None
+
+
 class CampaignDashboardView(APIView):
     """
     GET  /api/campaigns/<pk>/dashboard/
-    Returns all aggregated analytics for a campaign.
+
+    Accepts optional query params:
+      - unidade_ids  comma-separated list of Unidade PKs to filter by
+      - setor_ids    comma-separated list of Setor PKs to filter by
+
+    For LEADER users the backend enforces that only their permitted
+    unidades/setores are used regardless of what the request sends.
+    All data is read from the pre-computed DimensionScore star-schema table
+    via selectors — no calculation happens at request time.
     """
 
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsRHOrLeader,)
 
     def get(self, request: Request, pk: int) -> Response:
         try:
@@ -252,19 +322,41 @@ class CampaignDashboardView(APIView):
         except Campaign.DoesNotExist:
             return Response({'detail': 'Campanha não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
 
-        summary = DashboardService.get_summary(campaign)
-        gender_scores = DashboardService.get_gender_scores(campaign)
-        age_scores = DashboardService.get_age_range_scores(campaign)
-        heatmap = DashboardService.get_sector_heatmap(campaign)
-        critical_sectors = DashboardService.get_critical_sectors(campaign)
-        demographic = DashboardService.get_demographic_groups(campaign)
+        # Parse requested filters from query params
+        req_unidade_ids = _parse_int_list(request.query_params.get('unidade_ids'))
+        req_setor_ids = _parse_int_list(request.query_params.get('setor_ids'))
+
+        # Enforce role-based access: LEADER cannot see data outside their permissions
+        unidade_ids, setor_ids = _enforce_leader_filters(
+            request.user, req_unidade_ids, req_setor_ids
+        )
 
         return Response({
             'campaign': CampaignSerializer(campaign).data,
-            'summary': summary,
-            'gender_scores': gender_scores,
-            'age_range_scores': age_scores,
-            'sector_heatmap': heatmap,
-            'critical_sectors': critical_sectors,
-            'demographic_groups': demographic,
+            'summary': selectors.get_campaign_summary(campaign, unidade_ids, setor_ids),
+            'gender_scores': selectors.get_scores_por_genero(campaign, unidade_ids, setor_ids),
+            'age_range_scores': selectors.get_scores_por_faixa_etaria(campaign, unidade_ids, setor_ids),
+            'sector_heatmap': selectors.get_heatmap_data(campaign, unidade_ids, setor_ids),
+            'critical_sectors': selectors.get_top_setores_criticos(campaign, unidade_ids, setor_ids),
+            'demographic_groups': selectors.get_grupos_criticos(campaign, unidade_ids, setor_ids),
         })
+
+
+class DashboardFiltersView(APIView):
+    """
+    GET  /api/campaigns/<pk>/dashboard/filters/
+
+    Returns the unidades and setores available for the current user to filter by.
+    RH sees all that appear in the campaign data; LEADER sees only permitted ones.
+    """
+
+    permission_classes = (IsRHOrLeader,)
+
+    def get(self, request: Request, pk: int) -> Response:
+        try:
+            campaign = Campaign.objects.get(pk=pk)
+        except Campaign.DoesNotExist:
+            return Response({'detail': 'Campanha não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+
+        filters = selectors.get_filtros_disponiveis(campaign, request.user)
+        return Response(filters)

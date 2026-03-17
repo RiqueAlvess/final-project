@@ -10,6 +10,7 @@ from .views import (
     CampaignDetailView,
     CampaignListCreateView,
     CreateInvitesFromRegistrosView,
+    DashboardFiltersView,
     InviteListView,
     SurveySubmitView,
     SurveyTokenValidateView,
@@ -27,8 +28,9 @@ urlpatterns = [
     path('<int:pk>/invites/import/', CreateInvitesFromRegistrosView.as_view(), name='invite-import'),
     path('<int:pk>/invites/send/', BulkSendInvitesView.as_view(), name='invite-send'),
 
-    # Dashboard
+    # Dashboard analytics (supports ?unidade_ids=1,2&setor_ids=3,4)
     path('<int:pk>/dashboard/', CampaignDashboardView.as_view(), name='campaign-dashboard'),
+    path('<int:pk>/dashboard/filters/', DashboardFiltersView.as_view(), name='campaign-dashboard-filters'),
 
     # Public survey (no auth)
     path('survey/<str:token>/', SurveyTokenValidateView.as_view(), name='survey-validate'),

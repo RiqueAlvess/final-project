@@ -270,8 +270,9 @@ class SurveySubmissionService:
         invite.response_status = SurveyInvite.ResponseStatus.ANSWERED
         invite.save(update_fields=['response_status'])
 
-        # Compute and store dimension scores
-        ScoreCalculationService.calculate_and_store(response)
+        # Enqueue async score computation via Celery (never block the request)
+        from .tasks import compute_dimension_scores
+        compute_dimension_scores.delay(response.pk)
 
         return response
 
