@@ -30,9 +30,15 @@ from . import selectors
 # ── Campaigns ──────────────────────────────────────────────────────────────────
 
 class CampaignListCreateView(generics.ListCreateAPIView):
-    """List all campaigns or create a new one (RH only)."""
+    """
+    GET   – list campaigns (RH, LEADER, GLOBAL_ADMIN).
+    POST  – create campaign (RH, GLOBAL_ADMIN only).
+    """
 
-    permission_classes = (IsRH,)
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsRH()]
+        return [IsRHOrLeader()]
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -41,13 +47,6 @@ class CampaignListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return Campaign.objects.prefetch_related('invites').all()
-
-    def perform_create(self, serializer):
-        CampaignService.create(
-            name=serializer.validated_data['name'],
-            description=serializer.validated_data.get('description', ''),
-            created_by=self.request.user,
-        )
 
     def create(self, request: Request, *args, **kwargs) -> Response:
         serializer = CampaignWriteSerializer(data=request.data)
