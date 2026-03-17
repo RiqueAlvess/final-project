@@ -10,7 +10,7 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production')
+SECRET_KEY = config('SECRET_KEY')
 
 DEBUG = config('DEBUG', default=False, cast=bool)
 
@@ -35,6 +35,7 @@ SHARED_APPS = [
     'django_ratelimit',
     'drf_spectacular',
     'django_filters',
+    'django_celery_beat',
 ]
 
 TENANT_APPS = [
@@ -182,7 +183,7 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
     'ALGORITHM': 'HS256',
-    'SIGNING_KEY': config('SECRET_KEY', default='django-insecure-change-me-in-production'),
+    'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
@@ -193,7 +194,7 @@ SIMPLE_JWT = {
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000',
+    default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080',
     cast=Csv()
 )
 CORS_ALLOW_CREDENTIALS = True

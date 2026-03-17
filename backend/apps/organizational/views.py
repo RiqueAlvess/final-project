@@ -203,13 +203,15 @@ class LeaderPermissionView(APIView):
         permissions = write_serializer.validated_data['permissions']
 
         # Replace all permissions atomically
-        LeaderPermission.objects.filter(user_id=user_pk).delete()
-        for perm in permissions:
-            LeaderPermission.objects.create(
-                user_id=user_pk,
-                unidade=perm['unidade'],
-                setor=perm.get('setor'),
-            )
+        from django.db import transaction
+        with transaction.atomic():
+            LeaderPermission.objects.filter(user_id=user_pk).delete()
+            for perm in permissions:
+                LeaderPermission.objects.create(
+                    user_id=user_pk,
+                    unidade=perm['unidade'],
+                    setor=perm.get('setor'),
+                )
 
         perms = LeaderPermission.objects.filter(user_id=user_pk).select_related('unidade', 'setor')
         return Response(LeaderPermissionSerializer(perms, many=True).data)
