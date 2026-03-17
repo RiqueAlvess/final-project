@@ -19,7 +19,7 @@ export function useAuth() {
         .get<User>("/api/users/me/")
         .then((res) => {
           setUser(res.data);
-          localStorage.setItem("user", JSON.stringify(res.data));
+          sessionStorage.setItem("user", JSON.stringify(res.data));
         })
         .catch(() => {
           // If fetch fails, the token may be expired - interceptor handles redirect
@@ -33,7 +33,7 @@ export function useAuth() {
         .get<User>("/api/users/me/")
         .then((res) => {
           setUser(res.data);
-          localStorage.setItem("user", JSON.stringify(res.data));
+          sessionStorage.setItem("user", JSON.stringify(res.data));
         })
         .finally(() => setIsLoading(false));
     }

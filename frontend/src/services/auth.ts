@@ -2,7 +2,7 @@ import axios, { AxiosError } from "axios";
 import Cookies from "js-cookie";
 import { apiClient } from "./api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export interface User {
   id: number;
@@ -57,7 +57,7 @@ export const authService = {
 
       // Cache user in localStorage
       if (typeof window !== "undefined") {
-        localStorage.setItem("user", JSON.stringify(user));
+        sessionStorage.setItem("user", JSON.stringify(user));
       }
 
       return response.data;
@@ -76,7 +76,7 @@ export const authService = {
       Cookies.remove("access_token");
       Cookies.remove("refresh_token");
       if (typeof window !== "undefined") {
-        localStorage.removeItem("user");
+        sessionStorage.removeItem("user");
       }
     }
   },
@@ -107,7 +107,7 @@ export const authService = {
 
   getStoredUser(): User | null {
     if (typeof window === "undefined") return null;
-    const stored = localStorage.getItem("user");
+    const stored = sessionStorage.getItem("user");
     if (!stored) return null;
     try {
       return JSON.parse(stored) as User;

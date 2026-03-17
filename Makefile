@@ -11,6 +11,8 @@ help:
 	@echo "  make createsuperuser - Create a global admin superuser"
 	@echo "  make seed            - Create public + demo tenants"
 	@echo ""
+	@echo ""
+	@echo "API runs on port 8080 by default. Override with: API_PORT=9000 make up"
 	@echo "Database is Supabase (external). Set DATABASE_URL in backend/.env before running."
 
 build:
@@ -70,7 +72,7 @@ except Tenant.DoesNotExist:
         responsible_email='rh@demo.com',
     )
     Domain.objects.create(domain='demo.localhost', tenant=demo, is_primary=True)
-    print('Demo tenant created: http://demo.localhost:8000')
+    print('Demo tenant created: http://demo.localhost:8080')
 "
 
 seed_hse:

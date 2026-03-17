@@ -32,8 +32,6 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 class PasswordResetConfirmSerializer(serializers.Serializer):
     """Confirm password reset with token and new password."""
 
-    from django.contrib.auth.password_validation import validate_password
-
     token = serializers.CharField()
     new_password = serializers.CharField(write_only=True)
     new_password_confirm = serializers.CharField(write_only=True)
@@ -41,6 +39,8 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     def validate(self, attrs: dict) -> dict:
         if attrs['new_password'] != attrs['new_password_confirm']:
             raise serializers.ValidationError({'new_password_confirm': 'Passwords do not match.'})
+        from django.contrib.auth.password_validation import validate_password
+        validate_password(attrs['new_password'])
         return attrs
 
 
