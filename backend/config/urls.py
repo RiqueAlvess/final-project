@@ -25,6 +25,9 @@ urlpatterns = [
 
     # Organizational
     path('api/organizational/', include('apps.organizational.urls')),
+
+    # Campaigns & HSE-IT survey
+    path('api/campaigns/', include('apps.campaigns.urls')),
 ]
 
 if settings.DEBUG:

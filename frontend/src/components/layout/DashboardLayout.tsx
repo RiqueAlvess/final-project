@@ -16,6 +16,7 @@ import {
   Search,
   Shield,
   FileSpreadsheet,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -54,6 +55,12 @@ const navItems = [
     label: "CSV Import",
     href: "/dashboard/csv-import",
     icon: FileSpreadsheet,
+    roles: ["GLOBAL_ADMIN", "RH"],
+  },
+  {
+    label: "Campanhas",
+    href: "/dashboard/campaigns",
+    icon: BarChart3,
     roles: ["GLOBAL_ADMIN", "RH"],
   },
   {

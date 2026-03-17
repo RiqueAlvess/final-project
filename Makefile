@@ -1,4 +1,4 @@
-.PHONY: help build up down logs shell migrate createsuperuser
+.PHONY: help build up down logs shell migrate createsuperuser seed_hse
 
 help:
 	@echo "Available commands:"
@@ -72,6 +72,9 @@ except Tenant.DoesNotExist:
     Domain.objects.create(domain='demo.localhost', tenant=demo, is_primary=True)
     print('Demo tenant created: http://demo.localhost:8000')
 "
+
+seed_hse:
+	docker compose exec api python manage.py seed_hse_questions
 
 restart:
 	docker compose restart
