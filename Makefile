@@ -1,7 +1,8 @@
-.PHONY: help build up down logs shell migrate createsuperuser seed_hse
+.PHONY: help setup build up down logs shell migrate createsuperuser seed_hse
 
 help:
 	@echo "Available commands:"
+	@echo "  make setup           - Configure host kernel settings required by Redis"
 	@echo "  make build           - Build all Docker images"
 	@echo "  make up              - Start all services (Redis + API + Celery + Frontend)"
 	@echo "  make down            - Stop all services"
@@ -14,6 +15,12 @@ help:
 	@echo ""
 	@echo "API runs on port 8080 by default. Override with: API_PORT=9000 make up"
 	@echo "Database is Supabase (external). Set DATABASE_URL in backend/.env before running."
+
+setup:
+	@echo "Applying host kernel settings required by Redis..."
+	sudo sysctl vm.overcommit_memory=1
+	@grep -qxF 'vm.overcommit_memory = 1' /etc/sysctl.conf || echo 'vm.overcommit_memory = 1' | sudo tee -a /etc/sysctl.conf
+	@echo "Done. Setting is active now and will persist across reboots."
 
 build:
 	docker compose build
