@@ -255,7 +255,7 @@ SPECTACULAR_SETTINGS = {
 # ─── Logging ──────────────────────────────────────────────────────────────────
 LOGGING = {
     'version': 1,
-    'disable_existing_loggers': False,
+    'disable_existing_loggers': True,
     'formatters': {
         'verbose': {
             'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
@@ -268,12 +268,13 @@ LOGGING = {
             'formatter': 'verbose',
         },
     },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
     'loggers': {
         'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.server': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
